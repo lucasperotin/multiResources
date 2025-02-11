@@ -7,7 +7,7 @@ import glob
 priority="length"
 alpha="1"
 beta="0"
-debuga="4"
+debuga="0"
 rho="0"  #use 0 for "normal" settings, otherwise you should use it between 0.1 and 0.9
 mu="0" #use 0 for "normal" settings, otherwise you should use it between 0.1 and 0.4
 #############################################

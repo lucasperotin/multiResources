@@ -494,7 +494,6 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
 
     for (i=0; i<n; i++)
     {
-        cout<<i<<"\n";
         for(b=0;b<d;b++){
             helpBoy[b]=0;
         }
