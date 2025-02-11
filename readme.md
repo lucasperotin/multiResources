@@ -8,7 +8,7 @@ Requirements:
 USAGE:
 
 0/ Compilation
-If you make changes in build_LP.cc (resp simu.cc), use "g++ -O3 build_LP.cc -o LP" (resp. "g++ -O3 simu.cc -o SIM"). This should not be necessary though
+Use "g++ -O3 build_LP.cc -o LP" and "g++ -O3 simu.cc -o SIM"
 
 A/ Generate Workflow
 
