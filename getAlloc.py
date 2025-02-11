@@ -55,13 +55,20 @@ def main():
                 Alloc[i][b][j]=(int) (t[cmp])
                 cmp+=1
         
+    #debuga=4
     # Create the linear solver with the GLOP backend.
     solver = pywraplp.Solver.CreateSolver('GLOP')
 
+    minArea=0.0
+    for i in range(n):
+        minArea+=T[i][1][len(T[i][0])-1]
 #   // Create variables.
     Real=[]
     Dates=[]
+    Area=[]
+    Area2=[[] for i in range(n)]
     Virt=[[] for i in range(n)]
+    mAa=solver.NumVar(minArea,minArea,"mAa")
     L=solver.NumVar(0, solver.infinity(), "L")
     W=solver.NumVar(0, solver.infinity(), "W")
     C=solver.NumVar(0, solver.infinity(), "C")
@@ -69,8 +76,10 @@ def main():
     for i in range(n):
         Real.append(solver.NumVar(0.0,T[i][0][0],"Real"+(str) (i)))
         Dates.append(solver.NumVar(0.0,solver.infinity(),"Dates"+(str) (i)))
+        Area.append(solver.NumVar(0.0,solver.infinity(),"Area"+(str) (i)))
         for j in range(len(T[i][1])-1):
             Virt[i].append(solver.NumVar(0,T[i][0][j],"Virt"+(str)(i)+(str)(j)))
+            Area2[i].append(solver.NumVar(T[i][1][j],T[i][1][j],"Area2"+(str)(i)+(str)(j)))
         Virt[i].append(solver.NumVar(T[i][0][len(T[i][1])-1],T[i][0][len(T[i][1])-1],"Virt"+(str)(i)+(str)(len(T[i][1])-1)))
 
     if(debuga>0):
@@ -104,15 +113,21 @@ def main():
         DatesL[i].SetCoefficient(L,1)
         DatesL[i].SetCoefficient(Dates[i],-1)
     
-    maxArea=0.0
-    for i in range(n):
-        maxArea+=T[i][0][len(T[i][0])-1]
     
-    Wcompt=solver.Constraint(maxArea,solver.infinity(),"Wcompt")
-    Wcompt.SetCoefficient(W,1)
+    
+    Wcompt2=[]
     for i in range(n):
-        for j in range(len(Virt[i])-1):
-            Wcompt.SetCoefficient(Virt[i][j],T[i][1][j]/T[i][0][j])
+        Wcompt2.append(solver.Constraint(0.0,solver.infinity(),"Area"+(str)(i+n)))
+        Wcompt2[i].SetCoefficient(Area[i],1)
+        for j in range(len(Virt[i])-2):
+            Wcompt2[i].SetCoefficient(Area2[i][j],-1)
+            Wcompt2[i].SetCoefficient(Virt[i][j],T[i][1][j]/T[i][0][j])
+    
+    Wcompt=solver.Constraint(0,solver.infinity(),"Wcompt")
+    Wcompt.SetCoefficient(W,1)
+    Wcompt.SetCoefficient(mAa,-1)
+    for i in range(n):
+        Wcompt.SetCoefficient(Area[i],-1)
            
     LC=solver.Constraint(0.0, solver.infinity(),"LC")
     LC.SetCoefficient(C,1)
@@ -131,42 +146,54 @@ def main():
     objective.SetMinimization()
     solver.Solve()
 
-
 #   // Print results
-    if (debuga>3):
+    if (debuga>0):
         print('Solution:')
         print('Objective value =', objective.Value())
-        if (debuga>1):
+        if (debuga>3):
             print('L =', L.solution_value())
             print('W =', W.solution_value())
+            print('C =', C.solution_value())
         
             for i in range(n):
-                for j in range(len(Virt[i])):
+                for j in range(len(Virt[i])): #len(Virt[i])
                     print("Virt"+(str)(i)+(str)(j)+" = ",Virt[i][j].solution_value())
+                    print(Virt[i][j].solution_value(),(1-Virt[i][j].solution_value()/T[i][0][j])*T[i][1][j])
                     
             for i in range(n):
                 print("Real"+(str)(i)+" = ",Real[i].solution_value())
-                print("Dates"+(str)(i)+" = ",Real[i].solution_value())
+                print("Dates"+(str)(i)+" = ",Dates[i].solution_value())
+                print("Area"+(str)(i)+" = ",Area[i].solution_value())
   
 #     // Round
 
     ChoiceVirt=[[] for i in range(n)]
     Choice=[0 for i in range(n)]
     
+    if(debuga>4):
+        print("Round")
+        print("")
     for i in range(n):
+        if(debuga>1):
+            print("Variable" +(str)(i))
         for j in range(len(Virt[i])):
             temp=Virt[i][j].solution_value()
-            if (temp/T[i][1][j]<rho):
+            if (temp/T[i][0][j]<rho):
+                if(debuga>1):
+                    print(0)
                 ChoiceVirt[i].append(0)
             else:
+                if(debuga>1):
+                    print(1)
                 ChoiceVirt[i].append(1)
         ChoiceVirt[i].append(1)
+    
  
 
     #Rebuild allocation
     file2=open('./'+name,'w')
     file2.write((str)(objective.Value())+'\n')
-    if(debuga>0):
+    if(debuga>2):
         print("Final allocation (not reduced):")
     for i in range(n):
         tpch=0
@@ -176,7 +203,10 @@ def main():
             j+=1
         Choice[i]=tpch
         if(debuga>0):
-            print("-",Names[i],Alloc[i][0][Choice[i]],Alloc[i][1][Choice[i]])
+            print("-",Names[i],end=" ")
+            for j in range(d):
+                print(Alloc[i][j][Choice[i]], end=" ")
+            print("")
         file2.write(Names[i]+' ')
         for b in range(d):
             file2.write((str)(Alloc[i][b][Choice[i]])+' ')

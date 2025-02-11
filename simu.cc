@@ -346,7 +346,7 @@ begin:
         {
             //It is an ending event so we need to schedule new tasks
 
-            printEventQueue(eventQueue);
+            //printEventQueue(eventQueue);
             r.tasks.push_back(e.related_task);
             Completed[e.related_task.getIndex()]=true;
             tmpProcs=e.related_task.getProcs();
@@ -618,21 +618,45 @@ int readPrecs(string filename, vector<Task> &v, int d)
     return m;
 }
 
+void reduceAlloc(vector<Task>& jobs, int d, vector<long> num_procs, int debuga, double mu){
+    
+    vector<long> Procs;
+    for (int i=0;i<jobs.size();i++){
+        Procs=jobs[i].getProcs();
+        if(debuga>0)
+        {
+            cout<<jobs[i].getName() << ", Final allocation for ALGO: ";
+        }
+        for (int j=0; j<d; j++)
+        {
+            if (mu*num_procs[j]<Procs[j])
+            {
+                Procs[j]=ceil(mu*num_procs[j]);
+            }
+            if(debuga>0)
+            {
+                cout<<Procs[j]<<" ";
+            }
+        }
+        jobs[i].setProcs(Procs);
+        
+        if(debuga>0)
+        {
+            cout<<", Time: "<< jobs[i].time() << "\n";
+        }
+    }
+}
+
 float getAlloc(vector<Task>& jobs, int d, string filename, double mu, vector<long> num_procs,int debuga, int w)
 {
-    
     int i,j;
     vector<long> Procs;
     
     vector<string> Heuristics;
     Heuristics.push_back("Algo");
-    Heuristics.push_back("MinTime");
     Heuristics.push_back("MinArea");
+    Heuristics.push_back("MinTime");
     if(w==0){
-        if(debuga>0)
-        {
-            cout<<"\n\n***********PHASE B: REDUCING ALLOCATION************\n\n";
-        }
         ifstream input(filename,ios::in);
         string name;
         vector<long> Procs;
@@ -645,50 +669,53 @@ float getAlloc(vector<Task>& jobs, int d, string filename, double mu, vector<lon
         while (input >> name)
         {
             Procs= {};
-            if(debuga>0)
-            {
-                cout<<name << ", Final allocation: ";
-            }
             for (j=0; j<d; j++)
             {
                 input >> tmpProcs;
-                if (mu*num_procs[j]<tmpProcs)
-                {
-                    tmpProcs=ceil(mu*num_procs[j]);
-                }
-                if(debuga>0)
-                {
-                    cout<<tmpProcs<<" ";
-                }
                 Procs.push_back(tmpProcs);
             }
 
             jobs[i].setProcs(Procs);
 
-            if(debuga>0)
-            {
-                cout<<", Time: "<< jobs[i].time() << "\n";
-            }
             i++;
         }
         return LowerBound;
     }
     else if(w==1){
         if(debuga>0){
-            cout << "***********Allocation for MinTime ***************\n\n";
-            cout << "Allocation for all tasks\n";
+            cout << "***********Allocation for MinArea ***************\n\n";
         }
-        for (j=0;j<d;j++){
-            Procs.push_back(1);
-            if (debuga>0){
-                cout << Procs[j]<<' ';
+        ifstream input(filename,ios::in);
+        string name;
+        vector<long> Procs;
+        long tmpProcs;
+        i=0;
+
+        float LowerBound;
+        while (input >> name)
+        {
+            Procs= {};
+            if(debuga>0){
+                cout << name << " ";
             }
-        }
-        if (debuga>0){
-            cout << "\n";
-        }
-        for (i=0;i<jobs.size();i++){
+            for (j=0; j<d; j++)
+            {
+                input >> tmpProcs;
+                Procs.push_back(tmpProcs);
+                if (debuga>0){
+                    cout << tmpProcs << " ";
+                }
+            }
+            if (debuga>0){
+                cout<<"\n";
+            }
+
             jobs[i].setProcs(Procs);
+
+            i++;
+        }
+        
+        for (i=0;i<jobs.size();i++){
             if(debuga>0)
             {
                 cout<<jobs[i].getName()<<", Time: "<< jobs[i].time() << "\n";
@@ -704,6 +731,9 @@ float getAlloc(vector<Task>& jobs, int d, string filename, double mu, vector<lon
         }
         for (j=0;j<d;j++){
             Procs.push_back(num_procs[j]);
+            if (debuga>0){
+                cout << Procs[j]<<' ';
+            }
         }
         if (debuga>0){
             cout << "\n";
@@ -719,6 +749,25 @@ float getAlloc(vector<Task>& jobs, int d, string filename, double mu, vector<lon
     }
 }
 
+float compute_area(vector<Task>& jobs, vector<long> num_procs,long d){
+    long i;
+    long b;
+    float t;
+    float  Area=0;
+    vector<long> procs;
+    
+    for (i=0;i<jobs.size();i++){
+        t=jobs[i].time();
+        procs=jobs[i].getProcs();
+        for (b=0;b<d;b++){
+            Area+=t*procs[b]/num_procs[b];
+        }
+        //cout << t << " " << procs[0] << procs[1] << procs[2]<< " " << jobs[i].getName() << " " << Area<<"\n";
+    }
+    return Area/d;
+}
+
+
 int main(int argc, char** argv)
 {
     struct timeval time;
@@ -727,14 +776,18 @@ int main(int argc, char** argv)
     int debuga;
     float alpha;
     float beta;
+    float CP; // Critical Path
+    float HBCP; //higher bound on Critical Path
+    float Area; // Area
+    float HBArea; // higher bound on area
     double HB;
     double RLB;
     double rho;
     long m;
     vector<string> Heuristics;
     Heuristics.push_back("Algo");
-    Heuristics.push_back("MinTime");
     Heuristics.push_back("MinArea");
+    Heuristics.push_back("MinTime");
 
     double val = (time.tv_sec * 1000) + (time.tv_usec / 1000);
     Simulator s(val, 0,0);
@@ -756,14 +809,15 @@ int main(int argc, char** argv)
     input >> preclist;
     input >> fileout;
     input >> rule;
+    input >> rho;
+    input >> mu;
     input >> d;
 
-    mu=(3-sqrt(5))/2;
-    rho=1/(sqrt(d*(1+sqrt(5))/2)+1);
-    HB=d*(1+sqrt(5))/2+2*sqrt(d*(1+sqrt(5))/2)+1;
+    
     //long d = {stoi(string(rd))};
 
     vector<long> num_procs = {};
+    vector<long> num_procs2 = {};
     long p;
 
     for (int k=0; k<d; k++)
@@ -772,6 +826,8 @@ int main(int argc, char** argv)
         num_procs.push_back(p);
     }
 
+    ofstream errfile;
+    errfile.open("error.txt", ios_base::app);
     string priority;
     int w;
     string outfile;
@@ -780,6 +836,15 @@ int main(int argc, char** argv)
     input >> alpha;
     input >> beta;
     input >> outfile;
+    
+    if (rho==0){
+        rho=1/(sqrt(d*(1+sqrt(5))/2)+1);
+    }
+    if(mu==0){
+        mu=(3-sqrt(5))/2;
+    }
+    //rho=0.75;
+    HB=1/rho+d/(1-mu)/(1-rho);
     //./moldable jobs failures nb_iter num_procs priority_fun shelves?
 
     // rule=string(argv[3]);
@@ -839,7 +904,16 @@ int main(int argc, char** argv)
         {
             double avg_time = 0;
             int nb_fail_tmp = 0;
-            LB=getAlloc(jobs,d,fileout,mu,num_procs,debuga,w);
+            if (w==1){
+                fileout=fileout.substr(0, fileout.size()-4)+"mA.txt";
+                LB=getAlloc(jobs,d,fileout,mu,num_procs,debuga,w);
+                /*for(int i=0;i<jobs.size();i++){
+                    cout << jobs[i].getProcs()[0]<< " " << jobs[i].getProcs()[1] << " " << jobs[i].getProcs()[2] << "\n"; 
+                }*/
+            }
+            else{
+                LB=getAlloc(jobs,d,fileout,mu,num_procs,debuga,w);
+            }
             if (w==0)
             {
                 RLB=LB;
@@ -848,15 +922,56 @@ int main(int argc, char** argv)
             {
                 cout << "\n\n*************PHASE C: START OF SIMULATION FOR "+Heuristics[w]+"************* \n\n";
             }
+            if (w<3){ 
+            
+                for (int i=0;i<num_procs.size();i++){
+                    num_procs2.push_back(num_procs[i]*jobs.size());
+                    //cout<<num_procs2[i] << " ";
+                }
+                Result r=simulate(s,jobs,num_procs2,d,0);
+                CP=r.exec_time;
+                Area=compute_area(jobs,num_procs,d);
+                
+                HBCP=LB/rho;
+                HBArea=LB/(1-rho);
+                //cout<<LB<< " " << HBCP << " " << rho << "\n";
+                if(CP>HBCP and w==0){
+                    errfile << "ERROR !!! Critical Path higher than expected\n";
+                    errfile<<filename<<"\n";
+                }
+                if (Area>HBArea and w==0){
+                    errfile << "ERROR !!! Area higher than expected\n";
+                    errfile<<filename<<"\n";
+                }
+                cout << "CP' "<< r.exec_time << " A' "<<Area<< "\n";
+            }
+            if(w==0){
+                reduceAlloc(jobs, d, num_procs, debuga, mu);
+                
+                Result r=simulate(s,jobs,num_procs2,d,0);
+                CP=r.exec_time;
+                Area=compute_area(jobs,num_procs,d);
+                cout << "CP " << r.exec_time << " A " << Area << "\n";
+                
+            }
+            if(w>0){
+                debuga=0;
+            }
             Result r=simulate(s,jobs,num_procs,d,debuga);
+            
+            if (w==0 and r.exec_time >HB and mu<=0.5){
+                errfile << "ERROR : EXECUTION TIME SHOULD BE SMALLER\n";
+                errfile<<filename<<"\n";
+            }
+            
             if (debuga>0)
             {
-                cout << "\n\n*************FINAL RESULTS************* \n\n";
+                //cout << "\n\n*************FINAL RESULTS************* \n\n";
             }
             if (w==0)
             {
                 HB=LB*HB;
-                LB=LB/(1+alpha)/(1+beta);
+                RLB=LB/(1+alpha)/(1+beta);
             }
             
             ofstream myfile;
@@ -876,7 +991,9 @@ int main(int argc, char** argv)
             }
             myfile.close();
         }
+        //cout<<rho<<"\n";
         jobs={};
     }
+    errfile.close();
     return 0;
 }

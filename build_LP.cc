@@ -267,7 +267,6 @@ double pTaskLengthS(Task t)
 
 double pTaskAreaS(Task t)
 {
-
     int k;
     long tot=0;
     for (int k=0; k<t.getProcs().size(); k++)
@@ -408,13 +407,16 @@ int readPrecs(string filename, vector<Task> &v, int d)
 
 void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filename, double rho, int debuga,double alpha, double beta)
 {
+    string fileout=filename.substr(0, filename.size()-4)+"mA.txt";
     if(debuga>0)
     {
         cout<<"\n\n***********PHASE A: BUILDING LINEAR PROGRAM************\n\n";
     }
     ofstream myfile;
     myfile.open("tempForPython.txt");
-
+    ofstream myfile2;
+    myfile2.open(fileout);
+    
     long i,j,k,l,x,y;
     long n;
     n=jobs.size();
@@ -492,6 +494,7 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
 
     for (i=0; i<n; i++)
     {
+        cout<<i<<"\n";
         for(b=0;b<d;b++){
             helpBoy[b]=0;
         }
@@ -528,7 +531,6 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
         }
        // cout<<cmp<<'\n';
         //sort
-
         if(debuga>2)
         {
             cout << "\nStep 0: Project resources (for Task "<<i<<") (un sorted)\n\n";
@@ -552,7 +554,7 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
         } customLess;
         sort(possible[i].begin(),possible[i].end(),customLess);
 
-        if(debuga>1)
+        if(debuga>2)
         {
             cout << "\nStep 1: Project resources (for Task "<<i<<") (sorted)\n\n";
             for(j=0; j<possible[i].size(); j++)
@@ -593,7 +595,7 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
         }
 
        // cout<<possible[i].size()<<'\n';
-        if(debuga>1)
+        if(debuga>2)
         {
             cout << "\nStep 2: Remove some bad choices (for Task "<<i<<")\n\n";
             for(j=0; j<possible[i].size(); j++)
@@ -676,6 +678,7 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
         {
             cout << "Number of Virtual Tasks for this task: "<<T[i][0].size()<<'\n';
         }
+        myfile2<<jobs[i].getName() << " ";
         for(j=0; j<T[i][0].size(); j++)
         {
             myfile<< T[i][0][j] << ' ' << T[i][1][j] << ' ';
@@ -686,10 +689,16 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
             for(b=0; b<d; b++)
             {
                 myfile << PL[get<2>(possible[i][j])][b] << ' ';
+                if(j==0){
+                    myfile2 << PL[get<2>(possible[i][j])][b] << ' ';
+                }
                 if (debuga>0)
                 {
                     cout << PL[get<2>(possible[i][j])][b] << ' ';
                 }
+            }
+            if(j==0){
+                myfile2<<"\n";
             }
             if (debuga>0)
             {
@@ -698,6 +707,7 @@ void assignProcs(vector<Task>& jobs,vector<long> P, int d, long m,string filenam
         }
     }
     myfile.close();
+    myfile2.close();
 }
 
 int main(int argc, char** argv)
@@ -731,11 +741,16 @@ int main(int argc, char** argv)
     input >> preclist;
     input >> fileout;
     input >> rule;
+    input >> rho;
+    input >> mu;
     input >> d;
 
-    mu=(3-sqrt(5))/2;
-    rho=1/(sqrt(d*(1+sqrt(5))/2)+1);
-    //rho=0.8;
+    if (rho==0){
+        rho=1/(sqrt(d*(1+sqrt(5))/2)+1);
+    }
+    if(mu==0){
+        mu=(3-sqrt(5))/2;
+    }
 
     //long d = {stoi(string(rd))};
 
@@ -781,7 +796,7 @@ int main(int argc, char** argv)
     input >> beta;
     input >> outfile;
 
-    if(debuga>0)
+    if(debuga==0)
     {
         cout<<"rho "<<rho<<"\n";
         cout<<"mu "<<mu<<"\n";
